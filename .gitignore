@@ -1,0 +1,5 @@
+.vscode/
+__pycache__/
+.git/
+.DS_Store
+a.ipynb

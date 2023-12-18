@@ -89,25 +89,25 @@ class DataCollator:
                 `labels`: ground truth labels for six analytic measures.
         """
 
-        pd_examples = pd.DataFrame(examples).to_dict(orient="list")
-
         pad_token_id = self.tokenizer.pad_token_id if self.tokenizer.pad_token else self.tokenizer.eos_token_id
 
         input_ids = pad_sequence(
-            [torch.tensor(input_ids) for input_ids in pd_examples["input_ids"]],
+            [torch.tensor(input_ids) for input_ids in examples["input_ids"]],
             batch_first=True,
             padding_value=pad_token_id
         )
         attention_mask = input_ids.ne(pad_token_id)
 
         span_ids = pad_sequence(
-            [torch.tensor(span_ids) for span_ids in pd_examples["input_ids"]],
+            [torch.tensor(span_ids) for span_ids in examples["span_ids"]],
             batch_first=True,
-            padding_value=self.span_pooling_config.ignore_id
+            # padding_value=self.span_pooling_config.ignore_id
+            padding_value=-100
         )
         
-        if self.label_column_names and self.label_column_names in pd_examples:
-            labels = torch.tensor(pd_examples[self.label_column_names].values)
+        if self.label_column_names and set(self.label_column_names).issubset(examples.keys()):
+            labels = pd.DataFrame(examples)[self.label_column_names].values
+            labels = torch.tensor(labels)
 
             return {
                 "input_ids": input_ids,

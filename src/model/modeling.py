@@ -24,6 +24,7 @@ class FeedbackModel(DebertaPreTrainedModel):
         super().__init__(backbone_config)
 
         self.sliding_window_config = sliding_window_config
+        self.span_pooling_config = span_pooling_config
         self.loss_weights = loss_weights
 
         self.deberta = DebertaModel(backbone_config)
@@ -104,7 +105,7 @@ class FeedbackModel(DebertaPreTrainedModel):
 
             outputs = []
             for id in ids:
-                if id == -1:
+                if id == self.span_pooling_config.ignore_id:
                     continue
 
                 mask = span_ids == id

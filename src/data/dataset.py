@@ -5,11 +5,11 @@ import pandas as pd
 from src.data.data_utils import get_span_from_text
 
 class DataPreprocessor:
-    def __init__(self, tokenizer, max_len, span_type, ignore_span_id):
+    def __init__(self, tokenizer, max_len, span_type, ignored_span_id):
         self.tokenizer = tokenizer
         self.max_len = max_len
         self.span_type = span_type
-        self.ignore_span_id = ignore_span_id
+        self.ignored_span_id = ignored_span_id
 
     def _preprocess_text(self, text_batch):
         return text_batch
@@ -34,15 +34,15 @@ class DataPreprocessor:
             token_start, token_end = token_offset
 
             if token_start == token_end:
-                return self.ignore_span_id
+                return self.ignored_span_id
 
             for spans_id, (span_start, span_end) in enumerate(spans):
                 if token_start >= span_start and token_end <= span_end:
                 # if min(span_end, token_end) - max(span_start, token_start) > 0:
                     return spans_id
             
-            # Return ignore_span_id if the token is not in any span.
-            return self.ignore_span_id
+            # Return ignored_span_id if the token is not in any span.
+            return self.ignored_span_id
         
         toke_span_ids_batch = []
         for text, offset_mapping in zip(text_batch, offset_mapping_batch):
@@ -74,11 +74,11 @@ class DataPreprocessor:
 class DataCollator:
     def __init__(self, 
                  tokenizer, 
-                 span_pooling_config, 
+                 ignored_span_id, 
                  label_column_names=None):
         self.tokenizer = tokenizer
         self.label_column_names = label_column_names
-        self.span_pooling_config = span_pooling_config
+        self.ignored_span_id = ignored_span_id
 
     def __call__(self, examples):
         """ A data sample has:
@@ -89,31 +89,33 @@ class DataCollator:
                 `labels`: ground truth labels for six analytic measures.
         """
 
+        examples_pd = pd.DataFrame(examples)
+        examples_dict = examples_pd.to_dict(orient="list")
+
         pad_token_id = self.tokenizer.pad_token_id if self.tokenizer.pad_token else self.tokenizer.eos_token_id
 
         input_ids = pad_sequence(
-            [torch.tensor(input_ids) for input_ids in examples["input_ids"]],
+            [torch.tensor(input_ids) for input_ids in examples_dict["input_ids"]],
             batch_first=True,
             padding_value=pad_token_id
         )
         attention_mask = input_ids.ne(pad_token_id)
 
         span_ids = pad_sequence(
-            [torch.tensor(span_ids) for span_ids in examples["span_ids"]],
+            [torch.tensor(span_ids) for span_ids in examples_dict["span_ids"]],
             batch_first=True,
-            # padding_value=self.span_pooling_config.ignore_id
-            padding_value=-100
+            padding_value=self.ignored_span_id
         )
         
-        if self.label_column_names and set(self.label_column_names).issubset(examples.keys()):
-            labels = pd.DataFrame(examples)[self.label_column_names].values
+        if self.label_column_names and set(self.label_column_names).issubset(examples_pd.columns):
+            labels = examples_pd[self.label_column_names].values
             labels = torch.tensor(labels)
 
             return {
                 "input_ids": input_ids,
                 "attention_mask": attention_mask,
                 "span_ids": span_ids,
-                "labels": labels
+                "labels": labels.float()
             } 
 
         return {

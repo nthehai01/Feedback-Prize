@@ -25,7 +25,7 @@ class FeedbackModel(DebertaPreTrainedModel):
 
         self.sliding_window_config = sliding_window_config
         self.span_pooling_config = span_pooling_config
-        self.loss_weights = loss_weights
+        self.loss_weights = torch.tensor(loss_weights)
 
         self.deberta = DebertaModel(backbone_config)
 
@@ -82,12 +82,16 @@ class FeedbackModel(DebertaPreTrainedModel):
                 input_ids[:, start_window:end_window],
                 attention_mask[:, start_window:end_window],
             )
-            hidden_states.append(
-                segment_outputs[0][:, inner_size:inner_size+n_tokens]
-            )
 
             if end_window == seq_len:
+                hidden_states.append(
+                    segment_outputs[0][:, inner_size:]
+                )
                 break
+            else:
+                hidden_states.append(
+                    segment_outputs[0][:, inner_size:inner_size+n_tokens]
+                )
 
             start_window = start_window + n_tokens
             end_window = start_window + window_size
@@ -104,19 +108,19 @@ class FeedbackModel(DebertaPreTrainedModel):
             ids = torch.unique(span_ids)
 
             outputs = []
-            for id in ids:
-                if id == self.span_pooling_config.ignore_id:
+            for span_id in ids:
+                if span_id == self.span_pooling_config.ignored_span_id:
                     continue
 
-                mask = span_ids == id
-                temp = self.final_pooling(
+                mask = span_ids == span_id
+                temp = self.span_pooling(
                     hidden_states[mask].unsqueeze(0),
                     attention_mask[mask].unsqueeze(0)
                 )
                 outputs.append(temp)
 
             outputs = torch.cat(outputs, dim=0)
-
+            
             assert outputs.shape[0] == ids.shape[0] - 1
 
             return outputs
@@ -143,11 +147,13 @@ class FeedbackModel(DebertaPreTrainedModel):
         span_ids: Optional[torch.Tensor] = None,
         labels: Optional[torch.Tensor] = None,
         return_dict: Optional[bool] = None,
+        **kwargs
     ) -> Union[Tuple, SequenceClassifierOutput]:
         
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
-        if self.sliding_window_config.use_sliding_window:
+        seq_len = input_ids.shape[1]
+        if self.sliding_window_config.use_sliding_window and seq_len > self.sliding_window_config.window_size:
             hidden_states = self._sliding_window_encode(input_ids, attention_mask)
         else:
             outputs = self.deberta(input_ids, attention_mask)

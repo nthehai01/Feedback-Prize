@@ -37,7 +37,6 @@ class BaseFeedbackModel(PreTrainedModel):
         # Return the very first embedding layer since this layer directly takes the inputs
         for _, module in self._get_backbone().named_modules():
             if isinstance(module, nn.Embedding):
-                print(module)
                 return module
 
         raise ValueError("Cannot find the input embedding layer.")

@@ -4,6 +4,7 @@ import pandas as pd
 
 from src.data.data_utils import get_span_from_text
 
+
 class DataPreprocessor:
     def __init__(self, tokenizer, max_len, span_type, ignored_span_id):
         self.tokenizer = tokenizer
@@ -12,6 +13,8 @@ class DataPreprocessor:
         self.ignored_span_id = ignored_span_id
 
     def _preprocess_text(self, text_batch):
+        text_batch = [text.strip() for text in text_batch]
+
         return text_batch
 
     def _tokenize_dataset(self, text_batch):
@@ -70,6 +73,7 @@ class DataPreprocessor:
             return res
         
         return dataset.map(process, batched=True)
+
 
 class DataCollator:
     def __init__(self, 

@@ -1,9 +1,13 @@
 import os
 import argparse
 from dotwiz import DotWiz
+import optuna
 import torch
 import gc
 import yaml
+import matplotlib.pyplot as plt
+
+import evaluate
 
 from peft import (
     LoraConfig, 
@@ -22,7 +26,6 @@ from transformers.trainer_utils import get_last_checkpoint
 
 from src.utils import get_datasets, get_model_and_tokenizer
 from src.data.dataset import DataPreprocessor, DataCollator
-from src.metrics.competition_metric import mcrmse
 
 
 def parse_args():
@@ -87,30 +90,31 @@ def preprocess_logits_for_metrics(logits, labels):
     
     return logits
 
-def compute_metrics(label_column_names):
-    def forward(eval_preds):
-        preds, labels = eval_preds
 
-        preds = torch.tensor(preds)
-        labels = torch.tensor(labels)
+def compute_metrics(eval_preds):
+    metric = evaluate.load("roc_auc")
 
-        mcrmse_loss = mcrmse(preds, labels)
+    preds, labels = eval_preds
 
-        l1_colwise_loss = torch.mean(torch.abs(preds - labels), dim=0).tolist()
+    # preds = get_final_predictions(preds)
+    labels = labels.reshape(-1)
 
-        return {
-            "mcrmse": mcrmse_loss,
-            **{f"{k}_l1_loss": v for k, v in zip(label_column_names, l1_colwise_loss)}
-        }
+    return metric.compute(prediction_scores=preds, references=labels)
+
+
+def objective(trial):
+    lora_r = trial.suggest_categorical("lora_r", [2, 4, 8, 16, 32])
+    lora_alpha = trial.suggest_categorical("lora_alpha", [2, 4, 8, 16, 32])
+    learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-4)
     
-    return forward
-
-
-def main():
-    """ Main function for fine-tuning the model. """
 
     # 1. Parse arguments
     model_args, lora_args, data_args, training_args = parse_args()
+
+    # 1.1 Update hyperparameters
+    lora_args.r = lora_r
+    lora_args.lora_alpha = lora_alpha
+    training_args.learning_rate = learning_rate
 
     # 2. Set seed before initializing model.
     set_seed(training_args.seed)
@@ -138,7 +142,7 @@ def main():
     tokenized_datasets = data_preprocessor(datasets, data_args.text_column)
 
     # 7. Load checkpoint
-    checkpoint = load_checkpoint(training_args)
+    # checkpoint = load_checkpoint(training_args)
 
     # 8. Initialize the trainer
     data_collator = DataCollator(
@@ -151,22 +155,48 @@ def main():
         model=model, 
         args=training_args,
         train_dataset=tokenized_datasets["train"] if data_args.train_file else None,
-        eval_dataset=tokenized_datasets["eval"] if data_args.eval_file else None,
         data_collator=data_collator,
         tokenizer=tokenizer,
-        preprocess_logits_for_metrics=preprocess_logits_for_metrics,
-        compute_metrics=compute_metrics(data_args.label_column_names),
+        # preprocess_logits_for_metrics=preprocess_logits_for_metrics,
+        # compute_metrics=compute_metrics,
     )
 
     # 9. Train the model
-    if training_args.do_train:
-        trainer.train(resume_from_checkpoint=checkpoint)
+    trainer.train()
 
-    # 10. Clean up
+    # 10. Evaluate the model
+    stats = trainer.evaluate(tokenized_datasets["eval"])
+
+    # 11. Clean up
     torch.cuda.empty_cache()
-    del model, tokenizer
+    del model, tokenizer, trainer
     gc.collect()
 
+    return stats["eval_loss"]
+
+
+def main():
+    study = optuna.create_study(
+        direction="minimize", 
+        sampler=optuna.samplers.RandomSampler(seed=42)
+    )
+
+    study.optimize(objective, n_trials=60)
+
+    print("BEST PARAMS", study.best_params)
+
+    f = optuna.visualization.plot_optimization_history(study)
+    f.write_image("/kaggle/working/optuna_optimization_history.png")
+
+    f = optuna.visualization.plot_parallel_coordinate(study)
+    f.write_image("/kaggle/working/optuna_parallel_coordinate.png")
+
+    f = optuna.visualization.plot_slice(study)
+    f.write_image("/kaggle/working/optuna_slice.png")
+
+    f = optuna.visualization.plot_param_importances(study)
+    f.write_image("/kaggle/working/optuna_param_importances.png")
+    
 
 if __name__ == "__main__":
     main()

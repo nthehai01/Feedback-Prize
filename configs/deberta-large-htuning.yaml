@@ -1,0 +1,47 @@
+model:
+    pretrained_model_name_or_path: microsoft/deberta-v3-large
+    backbone_name: deberta
+    device_map: cuda
+    load_in_4bit: False
+    sliding_window_config:
+        use_sliding_window: True
+        window_size: 512
+        inner_size: 384
+        n_tokens: 64
+    span_pooling_config:
+        use_span_pooling: True
+        span_type: sentence
+        ignored_span_id: -100
+    final_pooling_config: {}
+    loss_weights: [0.21, 0.16, 0.10, 0.16, 0.21, 0.16]
+
+lora:
+    target_modules: [query_proj, key_proj, value_proj]
+    lora_dropout: 0.1
+
+data:
+    train_file: data/train_subset.jsonl
+    eval_file: data/eval.jsonl
+    max_len: 2048
+    text_column: full_text
+    label_column_names: [cohesion, syntax, vocabulary, phraseology, grammar, conventions]
+
+training:
+    seed: 42
+    do_train: True
+    do_eval: False
+    remove_unused_columns: False
+    fp16: True
+    weight_decay: 0.1
+    per_device_train_batch_size: 1
+    per_device_eval_batch_size: 1
+    gradient_accumulation_steps: 1
+    eval_accumulation_steps: 1
+    num_train_epochs: 1
+    warmup_steps: 100
+    output_dir: /kaggle/working/
+    overwrite_output_dir: True
+    save_strategy: epoch
+    logging_steps: 1
+    report_to: tensorboard
+    

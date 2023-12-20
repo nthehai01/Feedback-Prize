@@ -1,5 +1,6 @@
 model:
-    pretrained_model_name_or_path: microsoft/deberta-base
+    pretrained_model_name_or_path: microsoft/deberta-v3-large
+    backbone_name: deberta
     device_map: cuda
     load_in_4bit: False
     sliding_window_config:
@@ -15,7 +16,7 @@ model:
     loss_weights: [0.21, 0.16, 0.10, 0.16, 0.21, 0.16]
 
 lora:
-    target_modules: [pos_proj, pos_q_proj]
+    target_modules: [query_proj, key_proj, value_proj]
     r: 8
     lora_alpha: 32
     lora_dropout: 0.1

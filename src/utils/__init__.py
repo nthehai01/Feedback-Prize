@@ -39,10 +39,7 @@ def get_datasets(data_args):
 
 
 def get_model_and_tokenizer(model_args):
-    model_name_or_path = model_args.pretrained_model_name_or_path
-    
-    tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
-    
     model = FeedbackModel.from_pretrained(**model_args)
+    tokenizer = AutoTokenizer.from_pretrained(model_args.pretrained_model_name_or_path)
 
     return model, tokenizer

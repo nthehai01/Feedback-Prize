@@ -3,37 +3,106 @@ import torch.nn as nn
 
 from typing import Optional, Tuple, Union
 
-from transformers import AutoConfig, AutoModel, BitsAndBytesConfig
+from transformers import AutoConfig, AutoModel
+from transformers.modeling_utils import PreTrainedModel
 from transformers.modeling_outputs import SequenceClassifierOutput
-from transformers.models.deberta.modeling_deberta import DebertaModel, DebertaPreTrainedModel
 
 from src.model.pooling import MeanPooling
 from src.metrics.loss import FeedbackLoss
+from src.model.configuration import FeedbackConfig
 
 
 NUM_CLASSES = 6
 
 
-class FeedbackModel(DebertaPreTrainedModel):
+class BaseFeedbackModel(PreTrainedModel):
+    config_class = FeedbackConfig
+    supports_gradient_checkpointing = True
+
     def __init__(self, 
-                 backbone_config, 
+                 config):
+        super().__init__(config)
+        self.config = config
+
+        self.post_init()
+
+    def _set_backbone(self, modules):
+        setattr(self, self.backbone_name, modules)
+
+    def _get_backbone(self):
+        return getattr(self, self.backbone_name)
+
+    def get_input_embeddings(self):
+        # This function will be called by `model.enable_input_require_grads()`
+        # Return the very first embedding layer since this layer directly takes the inputs
+        for _, module in self._get_backbone().named_modules():
+            if isinstance(module, nn.Embedding):
+                print(module)
+                return module
+
+        raise ValueError("Cannot find the input embedding layer.")
+    
+    def set_input_embeddings(self, value):
+        # This function will be called by `model.resize_token_embeddings(value)`
+
+        def _get_current_layer_by_name(self, attribute_names):
+            """
+            For example:
+                attribute_names = ["bert", "encoder", "layer"]
+                return self.bert.encoder.layer
+            """
+
+            current_obj = self
+            for name in attribute_names[:-1]:
+                current_obj = getattr(current_obj, name)
+
+            return current_obj
+        
+        for name, module in self.named_modules():
+            if isinstance(module, nn.Embedding):
+                attribute_names = name.split('.')
+                layer = _get_current_layer_by_name(attribute_names)
+                setattr(layer, attribute_names[-1], value)
+                break
+                
+    def _init_weights(self, module):
+        """Initialize the weights."""
+        if isinstance(module, nn.Linear):
+            # Slightly different from the TF version which uses truncated_normal for initialization
+            # cf https://github.com/pytorch/pytorch/pull/5617
+            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+            if module.bias is not None:
+                module.bias.data.zero_()
+        elif isinstance(module, nn.Embedding):
+            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+            if module.padding_idx is not None:
+                module.weight.data[module.padding_idx].zero_()
+
+
+class FeedbackModel(BaseFeedbackModel):
+    def __init__(self, 
+                 config, 
                  sliding_window_config,
                  span_pooling_config, 
                  final_pooling_config,
                  loss_weights):
-        super().__init__(backbone_config)
+        super().__init__(config)
+        self.config = config
+        
+        self.backbone_name = config.backbone_name
 
         self.sliding_window_config = sliding_window_config
         self.span_pooling_config = span_pooling_config
         self.loss_weights = torch.tensor(loss_weights)
-
-        self.deberta = DebertaModel(backbone_config)
+        
+        backbone_config = AutoConfig.from_pretrained(config._name_or_path)
+        self._set_backbone(AutoModel.from_config(backbone_config))
 
         self.span_pooling = MeanPooling(**span_pooling_config) if span_pooling_config.use_span_pooling else None
 
         self.final_pooling = MeanPooling(**final_pooling_config)
 
-        self.fc = nn.Linear(backbone_config.hidden_size, NUM_CLASSES)
+        self.fc = nn.Linear(config.hidden_size, NUM_CLASSES)
 
         self.post_init()
 
@@ -64,7 +133,7 @@ class FeedbackModel(DebertaPreTrainedModel):
 
         assert n_tokens + inner_size <= window_size
 
-        first_segment_outputs = self.deberta(
+        first_segment_outputs = self._get_backbone()(
             input_ids[:, :window_size],
             attention_mask[:, :window_size],
         )
@@ -78,7 +147,7 @@ class FeedbackModel(DebertaPreTrainedModel):
 
         # Slide the window until the end of the sequence
         while True:
-            segment_outputs = self.deberta(
+            segment_outputs = self._get_backbone()(
                 input_ids[:, start_window:end_window],
                 attention_mask[:, start_window:end_window],
             )
@@ -156,7 +225,7 @@ class FeedbackModel(DebertaPreTrainedModel):
         if self.sliding_window_config.use_sliding_window and seq_len > self.sliding_window_config.window_size:
             hidden_states = self._sliding_window_encode(input_ids, attention_mask)
         else:
-            outputs = self.deberta(input_ids, attention_mask)
+            outputs = self._get_backbone()(input_ids, attention_mask)
             hidden_states = outputs[0]
 
         if self.span_pooling is not None:

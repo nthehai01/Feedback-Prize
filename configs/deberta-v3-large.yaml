@@ -10,9 +10,13 @@ model:
         n_tokens: 64
     span_pooling_config:
         use_span_pooling: True
+        pooling_name: attention
+        in_features: 1024
+        hidden_dim: 1024
         span_type: sentence
         ignored_span_id: -100
-    final_pooling_config: {}
+    final_pooling_config: 
+        pooling_name: mean
     loss_weights: [0.21, 0.16, 0.10, 0.16, 0.21, 0.16]
 
 lora:

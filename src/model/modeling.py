@@ -7,7 +7,7 @@ from transformers import AutoConfig, AutoModel
 from transformers.modeling_utils import PreTrainedModel
 from transformers.modeling_outputs import SequenceClassifierOutput
 
-from src.model.pooling import MeanPooling
+from src.model.pooling import POOLING_MAPPING
 from src.metrics.loss import FeedbackLoss
 from src.model.configuration import FeedbackConfig
 
@@ -99,9 +99,12 @@ class FeedbackModel(BaseFeedbackModel):
 
         self.hidden_dropout = nn.Dropout(config.hidden_dropout_prob)
 
-        self.span_pooling = MeanPooling(**span_pooling_config) if span_pooling_config.use_span_pooling else None
+        self.span_pooling = (
+            POOLING_MAPPING[span_pooling_config.pooling_name](**span_pooling_config) 
+            if span_pooling_config.use_span_pooling else None
+        )
 
-        self.final_pooling = MeanPooling(**final_pooling_config)
+        self.final_pooling = POOLING_MAPPING[final_pooling_config.pooling_name](**final_pooling_config)
 
         self.fc = nn.Linear(config.hidden_size, NUM_CLASSES)
 

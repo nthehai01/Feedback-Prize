@@ -108,8 +108,8 @@ def compute_metrics(label_column_names):
 
 
 def objective(trial):
-    lora_r = trial.suggest_categorical("lora_r", [16, 32, 64])
-    lora_alpha = trial.suggest_categorical("lora_alpha", [16, 32, 64])
+    lora_r = trial.suggest_categorical("lora_r", [2, 8, 16, 32])
+    lora_alpha = trial.suggest_categorical("lora_alpha", [2, 8, 16, 32])
     learning_rate = trial.suggest_float("learning_rate", 5e-5, 5e-4)
     
 
@@ -186,7 +186,7 @@ def main():
         sampler=optuna.samplers.RandomSampler(seed=42)
     )
 
-    study.optimize(objective, n_trials=40)
+    study.optimize(objective, n_trials=70)
 
     print("BEST PARAMS", study.best_params)
 

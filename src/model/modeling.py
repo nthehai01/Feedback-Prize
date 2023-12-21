@@ -97,6 +97,8 @@ class FeedbackModel(BaseFeedbackModel):
         backbone_config = AutoConfig.from_pretrained(config._name_or_path)
         self._set_backbone(AutoModel.from_config(backbone_config))
 
+        self.hidden_dropout = nn.Dropout(config.hidden_dropout_prob)
+
         self.span_pooling = MeanPooling(**span_pooling_config) if span_pooling_config.use_span_pooling else None
 
         self.final_pooling = MeanPooling(**final_pooling_config)
@@ -226,6 +228,8 @@ class FeedbackModel(BaseFeedbackModel):
         else:
             outputs = self._get_backbone()(input_ids, attention_mask)
             hidden_states = outputs[0]
+
+        hidden_states = self.hidden_dropout(hidden_states)
 
         if self.span_pooling is not None:
             hidden_states = self._span_pooling_forward(hidden_states, span_ids, attention_mask)

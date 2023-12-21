@@ -5,9 +5,6 @@ import optuna
 import torch
 import gc
 import yaml
-import matplotlib.pyplot as plt
-
-import evaluate
 
 from peft import (
     LoraConfig, 
@@ -26,6 +23,7 @@ from transformers.trainer_utils import get_last_checkpoint
 
 from src.utils import get_datasets, get_model_and_tokenizer
 from src.data.dataset import DataPreprocessor, DataCollator
+from src.metrics.competition_metric import mcrmse
 
 
 def parse_args():
@@ -90,22 +88,29 @@ def preprocess_logits_for_metrics(logits, labels):
     
     return logits
 
+def compute_metrics(label_column_names):
+    def forward(eval_preds):
+        preds, labels = eval_preds
 
-def compute_metrics(eval_preds):
-    metric = evaluate.load("roc_auc")
+        preds = torch.tensor(preds)
+        labels = torch.tensor(labels)
 
-    preds, labels = eval_preds
+        mcrmse_loss = mcrmse(preds, labels)
 
-    # preds = get_final_predictions(preds)
-    labels = labels.reshape(-1)
+        l1_colwise_loss = torch.mean(torch.abs(preds - labels), dim=0).tolist()
 
-    return metric.compute(prediction_scores=preds, references=labels)
+        return {
+            "mcrmse": mcrmse_loss,
+            **{f"{k}_l1_loss": v for k, v in zip(label_column_names, l1_colwise_loss)}
+        }
+    
+    return forward
 
 
 def objective(trial):
-    lora_r = trial.suggest_categorical("lora_r", [2, 4, 8, 16, 32])
-    lora_alpha = trial.suggest_categorical("lora_alpha", [2, 4, 8, 16, 32])
-    learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-4)
+    lora_r = trial.suggest_categorical("lora_r", [16, 32, 64])
+    lora_alpha = trial.suggest_categorical("lora_alpha", [16, 32, 64])
+    learning_rate = trial.suggest_float("learning_rate", 5e-5, 5e-4)
     
 
     # 1. Parse arguments
@@ -157,8 +162,8 @@ def objective(trial):
         train_dataset=tokenized_datasets["train"] if data_args.train_file else None,
         data_collator=data_collator,
         tokenizer=tokenizer,
-        # preprocess_logits_for_metrics=preprocess_logits_for_metrics,
-        # compute_metrics=compute_metrics,
+        preprocess_logits_for_metrics=preprocess_logits_for_metrics,
+        compute_metrics=compute_metrics(data_args.label_column_names),
     )
 
     # 9. Train the model
@@ -172,7 +177,7 @@ def objective(trial):
     del model, tokenizer, trainer
     gc.collect()
 
-    return stats["eval_loss"]
+    return stats["eval_mcrmse"]
 
 
 def main():
@@ -181,7 +186,7 @@ def main():
         sampler=optuna.samplers.RandomSampler(seed=42)
     )
 
-    study.optimize(objective, n_trials=60)
+    study.optimize(objective, n_trials=40)
 
     print("BEST PARAMS", study.best_params)
 
@@ -196,7 +201,8 @@ def main():
 
     f = optuna.visualization.plot_param_importances(study)
     f.write_image("/kaggle/working/optuna_param_importances.png")
-    
+
 
 if __name__ == "__main__":
     main()
+    

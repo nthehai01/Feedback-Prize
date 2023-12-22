@@ -1,5 +1,6 @@
 model:
     pretrained_model_name_or_path: /kaggle/input/deberta-v3-large-hf-weights
+    peft_model_id: /kaggle/input/tempx1/checkpoint-6256
     backbone_name: deberta
     device_map: cuda
     load_in_4bit: False
@@ -19,36 +20,8 @@ model:
         pooling_name: mean
     loss_weights: [0.21, 0.16, 0.10, 0.16, 0.21, 0.16]
 
-lora:
-    target_modules: [query_proj, key_proj, value_proj]
-    r: 8
-    lora_alpha: 2
-    lora_dropout: 0.1
-
 data:
-    train_file: data/train.jsonl
-    eval_file: data/eval.jsonl
+    eval_file: /kaggle/input/feedback-prize-english-language-learning/test.csv
     max_len: 2048
     text_column: full_text
     label_column_names: [cohesion, syntax, vocabulary, phraseology, grammar, conventions]
-
-training:
-    seed: 42
-    do_train: True
-    remove_unused_columns: False
-    fp16: True
-    weight_decay: 0.1
-    learning_rate: 9.0e-5
-    per_device_train_batch_size: 1
-    per_device_eval_batch_size: 1
-    gradient_accumulation_steps: 1
-    eval_accumulation_steps: 1
-    num_train_epochs: 5
-    warmup_steps: 2000
-    evaluation_strategy: epoch
-    output_dir: /kaggle/working/
-    overwrite_output_dir: True
-    save_strategy: epoch
-    logging_steps: 1
-    report_to: tensorboard
-    

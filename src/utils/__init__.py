@@ -1,5 +1,8 @@
-from datasets import load_dataset
+import argparse
+from dotwiz import DotWiz
+import yaml
 
+from datasets import load_dataset
 from transformers import AutoTokenizer
 
 from src.model.modeling import FeedbackModel
@@ -16,8 +19,8 @@ def get_datasets(data_args):
     """
 
     # Load datasets from local files
-    train_file = data_args.train_file
-    eval_file = data_args.eval_file
+    train_file = data_args.train_file if "train_file" in data_args else None
+    eval_file = data_args.eval_file if "eval_file" in data_args else None
 
     data_files = {}
 
@@ -43,3 +46,16 @@ def get_model_and_tokenizer(model_args):
     tokenizer = AutoTokenizer.from_pretrained(model_args.pretrained_model_name_or_path)
 
     return model, tokenizer
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="")
+    parser.add_argument("-C", "--config", help="config YAML filename")
+    args = parser.parse_args()
+    
+    with open(args.config, 'r') as f:
+        args = yaml.safe_load(f)
+
+    args = DotWiz(**args)
+
+    return {**args}

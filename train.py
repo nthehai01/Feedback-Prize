@@ -1,9 +1,6 @@
 import os
-import argparse
-from dotwiz import DotWiz
 import torch
 import gc
-import yaml
 
 from peft import (
     LoraConfig, 
@@ -12,35 +9,13 @@ from peft import (
     prepare_model_for_kbit_training
 )
 
-from transformers import (
-    Trainer,
-    set_seed,
-    TrainingArguments
-)
+from transformers import Trainer, TrainingArguments, set_seed
 
 from transformers.trainer_utils import get_last_checkpoint
 
-from src.utils import get_datasets, get_model_and_tokenizer
+from src.utils import get_datasets, get_model_and_tokenizer, parse_args
 from src.data.dataset import DataPreprocessor, DataCollator
 from src.metrics.competition_metric import mcrmse
-
-
-def parse_args():
-    parser = argparse.ArgumentParser(description="")
-    parser.add_argument("-C", "--config", help="config YAML filename")
-    args = parser.parse_args()
-    
-    with open(args.config, 'r') as f:
-        args = yaml.safe_load(f)
-
-    args = DotWiz(**args)
-
-    return (
-        args.model,
-        args.lora,
-        args.data,
-        TrainingArguments(**args.training)
-    )
 
 
 def post_process_model(model):
@@ -110,7 +85,11 @@ def main():
     """ Main function for fine-tuning the model. """
 
     # 1. Parse arguments
-    model_args, lora_args, data_args, training_args = parse_args()
+    args = parse_args()
+    model_args = args["model"]
+    lora_args = args["lora"]
+    data_args = args["data"]
+    training_args = TrainingArguments(**args["training"])
 
     # 2. Set seed before initializing model.
     set_seed(training_args.seed)

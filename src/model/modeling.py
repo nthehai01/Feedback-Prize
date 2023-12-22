@@ -84,7 +84,7 @@ class FeedbackModel(BaseFeedbackModel):
                  sliding_window_config,
                  span_pooling_config, 
                  final_pooling_config,
-                 loss_weights,
+                 loss_weights=None,
                  **kwargs):
         super().__init__(config)
         self.config = config

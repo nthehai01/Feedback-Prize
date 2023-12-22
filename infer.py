@@ -5,13 +5,17 @@ import numpy as np
 
 from peft import PeftModel
 
+from transformers import set_seed
+
 from src.utils import get_datasets, get_model_and_tokenizer, parse_args
 from src.data.dataset import DataPreprocessor, DataCollator
 
 
 def load_lora_model(model, peft_model_id):
     model = PeftModel.from_pretrained(model, peft_model_id, torch_dtype=torch.float16)
-    # model.half()
+    model = model.merge_and_unload()
+    
+    model.half()
 
     return model
 
@@ -21,6 +25,8 @@ def post_process(outputs):
 
 
 def infer(model, tokenized_datasets, data_collator):
+    model.eval()
+
     data_size = len(tokenized_datasets)
 
     res = []
@@ -48,6 +54,9 @@ def main():
     args = parse_args()
     model_args = args["model"]
     data_args = args["data"]
+
+    # 2. Set seed
+    set_seed(42)
 
     # 3. Get the datasets
     datasets = get_datasets(data_args)

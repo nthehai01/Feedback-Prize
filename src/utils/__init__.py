@@ -1,5 +1,5 @@
 import argparse
-from dotwiz import DotWiz
+from dotted_dict import DottedDict
 import yaml
 
 from datasets import load_dataset
@@ -56,6 +56,6 @@ def parse_args():
     with open(args.config, 'r') as f:
         args = yaml.safe_load(f)
 
-    args = DotWiz(**args)
+    args = DottedDict(args)
 
     return {**args}

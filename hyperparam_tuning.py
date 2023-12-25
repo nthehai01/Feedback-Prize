@@ -1,10 +1,7 @@
 import os
-import argparse
-from dotwiz import DotWiz
 import optuna
 import torch
 import gc
-import yaml
 
 from peft import (
     LoraConfig, 
@@ -21,27 +18,9 @@ from transformers import (
 
 from transformers.trainer_utils import get_last_checkpoint
 
-from src.utils import get_datasets, get_model_and_tokenizer
+from src.utils import get_datasets, get_model_and_tokenizer, parse_args
 from src.data.dataset import DataPreprocessor, DataCollator
 from src.metrics.competition_metric import mcrmse
-
-
-def parse_args():
-    parser = argparse.ArgumentParser(description="")
-    parser.add_argument("-C", "--config", help="config YAML filename")
-    args = parser.parse_args()
-    
-    with open(args.config, 'r') as f:
-        args = yaml.safe_load(f)
-
-    args = DotWiz(**args)
-
-    return (
-        args.model,
-        args.lora,
-        args.data,
-        TrainingArguments(**args.training)
-    )
 
 
 def post_process_model(model):
@@ -108,17 +87,29 @@ def compute_metrics(label_column_names):
 
 
 def objective(trial):
-    lora_r = trial.suggest_categorical("lora_r", [2, 8, 16, 32])
-    lora_alpha = trial.suggest_categorical("lora_alpha", [2, 8, 16, 32])
-    learning_rate = trial.suggest_float("learning_rate", 5e-5, 5e-4)
+    hidden_dropout_prob = trial.suggest_categorical("hidden_dropout_prob", [0.0, 0.05])
+    # attention_probs_dropout_prob = trial.suggest_categorical("attention_probs_dropout_prob", [0.0, 0.1])
+
+    lora_r = trial.suggest_categorical("lora_r", [2, 4, 8])
+    lora_alpha = trial.suggest_categorical("lora_alpha", [16, 32])
+
+    learning_rate = trial.suggest_categorical("learning_rate", [1e-4, 3e-4])
     
 
     # 1. Parse arguments
-    model_args, lora_args, data_args, training_args = parse_args()
+    args = parse_args()
+    model_args = args["model"]
+    lora_args = args["lora"]
+    data_args = args["data"]
+    training_args = TrainingArguments(**args["training"])
 
     # 1.1 Update hyperparameters
+    model_args.hidden_dropout_prob = hidden_dropout_prob
+    # model_args.attention_probs_dropout_prob = attention_probs_dropout_prob
+
     lora_args.r = lora_r
     lora_args.lora_alpha = lora_alpha
+
     training_args.learning_rate = learning_rate
 
     # 2. Set seed before initializing model.
@@ -186,7 +177,7 @@ def main():
         sampler=optuna.samplers.RandomSampler(seed=42)
     )
 
-    study.optimize(objective, n_trials=70)
+    study.optimize(objective, n_trials=20)
 
     print("BEST PARAMS", study.best_params)
 

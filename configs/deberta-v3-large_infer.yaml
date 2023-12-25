@@ -1,6 +1,6 @@
 model:
     pretrained_model_name_or_path: /kaggle/input/deberta-v3-large-hf-weights
-    peft_model_id: /kaggle/input/tempx1/checkpoint-6256
+    peft_model_id: /kaggle/input/tempx1/checkpoint-3128
     backbone_name: deberta
     device_map: cuda
     load_in_4bit: False
@@ -18,9 +18,10 @@ model:
         ignored_span_id: -100
     final_pooling_config: 
         pooling_name: mean
+    loss_weights: [0.21, 0.16, 0.10, 0.16, 0.21, 0.16]
 
 data:
-    eval_file: /kaggle/input/feedback-prize-english-language-learning/test.csv
-    max_len: 2048
+    eval_file: /kaggle/working/test.jsonl
+    max_len: 640
     text_column: full_text
     label_column_names: [cohesion, syntax, vocabulary, phraseology, grammar, conventions]

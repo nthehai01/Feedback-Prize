@@ -40,7 +40,7 @@ def infer(model, tokenized_datasets, data_collator):
             
             outputs = model(**inputs, return_dict=True).logits
             outputs = outputs.detach().cpu()
-            outputs = post_process(outputs)
+            # outputs = post_process(outputs)
             
             res.extend(outputs.tolist())
 
@@ -91,7 +91,7 @@ def main():
     output_df[data_args.label_column_names] = outputs
     
     temp = ["text_id", "cohesion", "syntax", "vocabulary", "phraseology", "grammar", "conventions"]
-    output_df[temp].to_csv("/kaggle/working/output.csv", index=False)
+    output_df[temp].to_csv("/kaggle/working/submission.csv", index=False)
 
     # 9. Clean up
     torch.cuda.empty_cache()

@@ -93,9 +93,9 @@ class FeedbackModel(BaseFeedbackModel):
 
         self.sliding_window_config = sliding_window_config
         self.span_pooling_config = span_pooling_config
-        self.loss_weights = torch.tensor(loss_weights)
+        self.loss_weights = torch.tensor(loss_weights) if loss_weights is not None else None
         
-        backbone_config = AutoConfig.from_pretrained(config._name_or_path)
+        backbone_config = AutoConfig.from_pretrained(config._name_or_path, **self.config.__dict__)
         self._set_backbone(AutoModel.from_config(backbone_config))
 
         self.hidden_dropout = nn.Dropout(config.hidden_dropout_prob)

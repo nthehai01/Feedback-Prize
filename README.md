@@ -1,8 +1,8 @@
-# HuggingFace's Transformers implementation for the Top 3 solution in Kaggle's [Feedback Prize - English Language Learning](https://www.kaggle.com/competitions/feedback-prize-english-language-learning) competition
+# HuggingFace's Transformers implementation for the Top 3 solution in Kaggle's Feedback Prize - English Language Learning competition
 
 ## Introduction
 
-abc
+This project is based on the [3rd solution](https://www.kaggle.com/competitions/feedback-prize-english-language-learning/discussion/369609) of the [Feedback Prize - English Language Learning](https://www.kaggle.com/competitions/feedback-prize-english-language-learning) competition. The code was re-implemented using [HuggingFace's Transformers](https://huggingface.co/transformers/) library and was trained using the [PEFT](https://huggingface.co/docs/peft/index) library. 
 
 ## Model, Training, and Inference
 
